@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Staff Attendance Tracker</title>
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --primary-hover: #172554;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --border: #e2e8f0;
+      --present: #16a34a;
+      --absent: #dc2626;
+      --halfday: #d97706;
+      --leave: #6b7280;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      color: var(--primary);
+    }
+
+    .date-badge {
+      background: var(--card-bg);
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 10px;
+      padding: 20px;
+      border: 1px solid var(--border);
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .form-inline {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    input[type="text"], input[type="date"], select {
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+      flex: 1;
+      min-width: 180px;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--primary);
+    }
+
+    button {
+      padding: 10px 18px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: var(--primary-hover);
+    }
+
+    button.secondary {
+      background: #0284c7;
+    }
+    button.secondary:hover {
+      background: #0369a1;
+    }
+
+    button.danger {
+      background: #ef4444;
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+    button.danger:hover {
+      background: #b91c1c;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    th {
+      background: #f1f5f9;
+      font-weight: 600;
+    }
+
+    .status-select {
+      font-weight: 600;
+      border-radius: 4px;
+      padding: 6px;
+      border: 1px solid var(--border);
+    }
+
+    .status-Present { color: var(--present); border-color: var(--present); }
+    .status-Absent { color: var(--absent); border-color: var(--absent); }
+    .status-Half-Day { color: var(--halfday); border-color: var(--halfday); }
+    .status-Leave { color: var(--leave); border-color: var(--leave); }
+
+    .action-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 15px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div>
+        <h1>Staff Attendance Register</h1>
+        <p style="color: #64748b; font-size: 13px;">Daily Attendance & Monthly Export</p>
+      </div>
+      <div class="date-badge">
+        <label for="filterDate">Date: </label>
+        <input type="date" id="filterDate" onchange="renderAttendance()">
+      </div>
+    </header>
+
+    <!-- Add Staff Card -->
+    <div class="card">
+      <h3 style="margin-bottom: 12px; font-size: 15px;">Add New Staff Member</h3>
+      <div class="form-inline">
+        <input type="text" id="staffName" placeholder="Full Name (e.g. Ramesh K)" />
+        <input type="text" id="staffRole" placeholder="Designation / Role (e.g. Receptionist)" />
+        <button onclick="addStaff()">+ Add Staff</button>
+      </div>
+    </div>
+
+    <!-- Attendance Sheet Card -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="font-size: 16px;">Attendance Sheet</h3>
+        <button class="secondary" onclick="exportToCSV()">📥 Export All Records (Excel/CSV)</button>
+      </div>
+
+      <div style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Staff Name</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Check-in Time</th>
+              <th>Notes / Remarks</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="attendanceTableBody">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize Local Storage Keys
+    const STAFF_KEY = "hospital_staff_list";
+    const ATTENDANCE_KEY = "hospital_staff_attendance";
+
+    // Set today's date in input by default
+    const today = new Date().toISOString().split("T")[0];
+    document.getElementById("filterDate").value = today;
+
+    // Load initial data
+    function getStaff() {
+      return JSON.parse(localStorage.getItem(STAFF_KEY)) || [
+        { id: 1, name: "Karthi", role: "Hospital Staff" }
+      ];
+    }
+
+    function saveStaff(staff) {
+      localStorage.setItem(STAFF_KEY, JSON.stringify(staff));
+    }
+
+    function getAttendanceRecords() {
+      return JSON.parse(localStorage.getItem(ATTENDANCE_KEY)) || {};
+    }
+
+    function saveAttendanceRecords(records) {
+      localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(records));
+    }
+
+    function addStaff() {
+      const nameInput = document.getElementById("staffName");
+      const roleInput = document.getElementById("staffRole");
+      const name = nameInput.value.trim();
+      const role = roleInput.value.trim() || "Staff";
+
+      if (!name) {
+        alert("Please enter staff name.");
+        return;
+      }
+
+      const staffList = getStaff();
+      staffList.push({ id: Date.now(), name, role });
+      saveStaff(staffList);
+
+      nameInput.value = "";
+      roleInput.value = "";
+      renderAttendance();
+    }
+
+    function removeStaff(id) {
+      if (confirm("Are you sure you want to remove this staff member?")) {
+        let staffList = getStaff();
+        staffList = staffList.filter(s => s.id !== id);
+        saveStaff(staffList);
+        renderAttendance();
+      }
+    }
+
+    function updateStatus(staffId, status) {
+      const date = document.getElementById("filterDate").value;
+      const records = getAttendanceRecords();
+      if (!records[date]) records[date] = {};
+      if (!records[date][staffId]) records[date][staffId] = {};
+
+      records[date][staffId].status = status;
+      // Auto-set check-in time if marked present and not set
+      if (status === "Present" && !records[date][staffId].time) {
+        records[date][staffId].time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      saveAttendanceRecords(records);
+      renderAttendance();
+    }
+
+    function updateTime(staffId, time) {
+      const date = document.getElementById("filterDate").value;
+      const records = getAttendanceRecords();
+      if (!records[date]) records[date] = {};
+      if (!records[date][staffId]) records[date][staffId] = {};
+
+      records[date][staffId].time = time;
+      saveAttendanceRecords(records);
+    }
+
+    function updateRemarks(staffId, remarks) {
+      const date = document.getElementById("filterDate").value;
+      const records = getAttendanceRecords();
+      if (!records[date]) records[date] = {};
+      if (!records[date][staffId]) records[date][staffId] = {};
+
+      records[date][staffId].remarks = remarks;
+      saveAttendanceRecords(records);
+    }
+
+    function renderAttendance() {
+      const selectedDate = document.getElementById("filterDate").value;
+      const staffList = getStaff();
+      const records = getAttendanceRecords()[selectedDate] || {};
+      const tbody = document.getElementById("attendanceTableBody");
+
+      tbody.innerHTML = "";
+
+      if (staffList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 20px;">No staff registered yet. Add staff above.</td></tr>`;
+        return;
+      }
+
+      staffList.forEach(staff => {
+        const staffRecord = records[staff.id] || { status: "Present", time: "", remarks: "" };
+        const status = staffRecord.status || "Present";
+        const time = staffRecord.time || "";
+        const remarks = staffRecord.remarks || "";
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${staff.name}</strong></td>
+          <td><span style="color: #64748b;">${staff.role}</span></td>
+          <td>
+            <select class="status-select status-${status}" onchange="updateStatus(${staff.id}, this.value)">
+              <option value="Present" ${status === "Present" ? "selected" : ""}>Present</option>
+              <option value="Absent" ${status === "Absent" ? "selected" : ""}>Absent</option>
+              <option value="Half-Day" ${status === "Half-Day" ? "selected" : ""}>Half-Day</option>
+              <option value="Leave" ${status === "Leave" ? "selected" : ""}>Leave</option>
+            </select>
+          </td>
+          <td>
+            <input type="text" style="width: 100px; padding: 4px 8px; font-size: 13px;" value="${time}" placeholder="09:00 AM" onchange="updateTime(${staff.id}, this.value)">
+          </td>
+          <td>
+            <input type="text" style="width: 100%; min-width: 140px; padding: 4px 8px; font-size: 13px;" value="${remarks}" placeholder="Optional note" onchange="updateRemarks(${staff.id}, this.value)">
+          </td>
+          <td>
+            <button class="danger" onclick="removeStaff(${staff.id})">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function exportToCSV() {
+      const staffList = getStaff();
+      const records = getAttendanceRecords();
+      const dates = Object.keys(records).sort();
+
+      if (dates.length === 0) {
+        alert("No attendance records to export.");
+        return;
+      }
+
+      let csv = "Date,Staff ID,Staff Name,Role,Status,Check-In Time,Remarks\n";
+
+      dates.forEach(date => {
+        staffList.forEach(staff => {
+          const rec = records[date] && records[date][staff.id] ? records[date][staff.id] : { status: "Not Marked", time: "-", remarks: "-" };
+          csv += `"${date}","${staff.id}","${staff.name}","${staff.role}","${rec.status || 'Present'}","${rec.time || ''}","${rec.remarks || ''}"\n`;
+        });
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Staff_Attendance_${today}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Initial render
+    renderAttendance();
+  </script>
+</body>
+</html>
